@@ -893,25 +893,40 @@ function stockly(){
     async login() {
       this.authLoading = true;
       this.authError = '';
-      const { error } = await sb.auth.signInWithPassword({ email: this.authEmail, password: this.authPass });
-      if (error) this.authError = error.message;
-      else this.authPass = '';
-      this.authLoading = false;
+      try {
+        const { error } = await sb.auth.signInWithPassword({ email: this.authEmail, password: this.authPass });
+        if (error) throw error;
+        this.authPass = '';
+      } catch (error) {
+        console.error("Error de login:", error);
+        this.authError = error.message === 'Failed to fetch' 
+          ? 'Error de conexión. Verifica tu red o la URL de Supabase.' 
+          : error.message;
+      } finally {
+        this.authLoading = false;
+      }
     },
 
     async register() {
       this.authLoading = true;
       this.authError = '';
-      const { data, error } = await sb.auth.signUp({ email: this.authEmail, password: this.authPass });
-      if (error) {
-        this.authError = error.message;
-      } else if (data.user && data.session) {
-        this.user = data.user;
-        await this.loadCloudData();
-      } else {
-        this.authError = 'Revisa tu correo para confirmar tu cuenta.';
+      try {
+        const { data, error } = await sb.auth.signUp({ email: this.authEmail, password: this.authPass });
+        if (error) throw error;
+        if (data.user && data.session) {
+          this.user = data.user;
+          await this.loadCloudData();
+        } else {
+          this.authError = 'Revisa tu correo para confirmar tu cuenta.';
+        }
+      } catch (error) {
+        console.error("Error de registro:", error);
+        this.authError = error.message === 'Failed to fetch' 
+          ? 'Error de conexión. Verifica tu red o la URL de Supabase.' 
+          : error.message;
+      } finally {
+        this.authLoading = false;
       }
-      this.authLoading = false;
     },
 
     async logout() {
