@@ -74,7 +74,7 @@ button:not([disabled]):active{transform:scale(.95)}
 .glow-text { text-shadow: 0 0 15px color-mix(in srgb, var(--accent) 70%, transparent), 0 0 4px color-mix(in srgb, var(--accent) 50%, transparent); }
 </style>
 </head>
-<body x-data="stockly()" x-init="init()" @keydown.window="key($event)" @dragover.window.prevent @drop.window.prevent>
+<body x-data="stockly()" @keydown.window="key($event)" @dragover.window.prevent @drop.window.prevent>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="ill-box" viewBox="0 0 200 140">
 <ellipse cx="100" cy="126" rx="64" ry="8" style="fill:var(--line)"/>
 <path d="M52 64L100 84L148 64V108L100 128L52 108Z" fill="#F2BE7C"/><path d="M52 64L100 84V128L52 108Z" fill="#E6A95B"/>
@@ -84,7 +84,7 @@ button:not([disabled]):active{transform:scale(.95)}
 <path d="M160 14l3.5 9 9 3.5-9 3.5-3.5 9-3.5-9-9-3.5 9-3.5z" style="fill:var(--accent)"/><path d="M38 20l2.5 6 6 2.5-6 2.5-2.5 6-2.5-6-6-2.5 6-2.5z" style="fill:var(--accent)" opacity=".55"/><circle cx="176" cy="60" r="3" style="fill:var(--accent)" opacity=".4"/>
 </symbol></defs></svg>
 
-<!-- NUEVA PANTALLA DE LOGIN -->
+<!-- PANTALLA DE LOGIN -->
 <section x-show="!user && !loading" x-cloak x-transition.opacity.duration.400ms class="fixed inset-0 z-50 bg-bg bgfx overflow-y-auto flex items-center justify-center p-4">
   <div class="dots absolute inset-x-0 top-0 h-96 pointer-events-none" aria-hidden="true"></div>
   <div class="absolute -right-32 -top-32 w-[34rem] h-[34rem] rounded-full pointer-events-none" style="background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 26%,transparent),transparent)" aria-hidden="true"></div>
@@ -775,9 +775,10 @@ button:not([disabled]):active{transform:scale(.95)}
 
 <script>
 // Inicializar Supabase (Usando tus credenciales)
-const supabaseUrl = 'https://ywwygdzicvtsxwmqkb.supabase.co';
-const supabaseKey = 'sb_publishable_ZzJ3Fs263mDOIdfc3OOceg_tyDrMXjs';
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+// ⚠️ Verifica que esta URL sea EXACTAMENTE la de tu panel de Supabase
+const sbUrl = 'https://ywwygdzicytsxcwmoqkb.supabase.co';
+const sbKey = 'sb_publishable_ZzJ3Fs263mDOIdfc3OOceg_tyDrMXjs';
+const sb = window.supabase.createClient(sbUrl, sbKey);
 
 function stockly(){
   const KEY='stockly:v1';
@@ -823,29 +824,56 @@ function stockly(){
     products:[],q:'',cat:'',view:'list',modal:false,form:blank(),toast:'',_t:null,theme:'light',step:0,menu:false,tab:'inv',loading:true,moves:[],drag:false,mv:{open:false,type:'in',qty:1,reason:'Compra a proveedor',note:''},pal:{open:false,q:'',ix:0},scan:{open:false,target:'find',err:''},fs:{ok:typeof window.showSaveFilePicker==='function',open:false,name:'',state:'none',last:0,auto:true,busy:false,newer:null},imp:{open:false,name:'',sheets:[],si:0,rows:[],hdr:0,hdr1:1,map:[],sec:true,out:{items:[],skipped:0,sections:[],add:0,upd:0}},impFields:[['name','Nombre'],['sku','Código'],['cat','Categoría'],['supplier','Proveedor'],['cost','Costo'],['price','Precio'],['stock','Existencias'],['barcode','Código de barras'],['tags','Etiquetas'],['desc','Descripción']],palette:['#2F7BFF','#1F9D63','#7C3AED','#E5484D','#F76B15','#0EA5A4','#D6409F','#334155'],lang:'es',ccy:'USD',curList:CURS,busy:'',catOpen:false,catIx:0,typeList:TYPES,biz:{name:'',types:[],custom:[],done:false},fresh:false,setupOpen:false,setup:{name:'',types:[],custom:[]},newCat:'',sort:'recent',detail:null,canUndo:false,newId:0,undo:null,imgs:{state:'',list:[],msg:''},d:{n:0,v:0,l:0},readOnly:false,
     
     async init(){
-      // 1. Verificar si hay sesión activa
-      const { data: { session } } = await supabase.auth.getSession();
-      this.user = session?.user || null;
-      
-      if (this.user) {
-        await this.loadCloudData();
-      }
-
-      // 2. Escuchar cambios de sesión (Login/Logout)
-      supabase.auth.onAuthStateChange(async (event, session) => {
-        this.user = session?.user || null;
-        if (event === 'SIGNED_IN') await this.loadCloudData();
-        if (event === 'SIGNED_OUT') {
-          this.products = [];
-          this.moves = [];
-          this.biz = { name: '', types: [], custom: [], done: false };
-        }
-      });
-
-      // 3. Cargar configuraciones locales
+      // 1. Inicializar tema e idioma antes de cargar datos
       try{const l=localStorage.getItem('stockly:lang'),c=localStorage.getItem('stockly:cur'),r=localStorage.getItem('stockly:readonly');if(l)this.lang=l;if(c)this.ccy=c;if(r)this.readOnly=r==='1'}catch(e){}
       document.documentElement.lang=this.lang;
       
+      let t='';try{t=localStorage.getItem('stockly:theme')||''}catch(e){}
+      this.theme=t||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');this.applyTheme();
+      
+      // 2. Verificar si hay sesión activa (con red de seguridad)
+      try {
+        const { data: { session }, error } = await sb.auth.getSession();
+        if (error) throw error;
+        
+        this.user = session?.user || null;
+        
+        if (this.user) {
+          await this.loadCloudData();
+        }
+      } catch(e) {
+        console.error("Error crítico al iniciar sesión:", e);
+        this.authError = "Error de conexión. Revisa tu internet.";
+      } finally {
+        // ¡Súper importante! Siempre quitamos el loading para evitar pantalla en negro
+        this.loading = false;
+      }
+
+      // 3. Escuchar cambios de sesión SIN bloquear
+      sb.auth.onAuthStateChange((event, session) => {
+        const newUser = session?.user || null;
+        
+        // Solo actuamos si el usuario realmente cambió
+        if (this.user?.id !== newUser?.id) {
+          this.user = newUser;
+          
+          if (event === 'SIGNED_IN') {
+            setTimeout(() => this.loadCloudData(), 0); 
+          } else if (event === 'SIGNED_OUT') {
+            this.products = [];
+            this.moves = [];
+            this.biz = { name: '', types: [], custom: [], done: false };
+            // Limpiamos la memoria local para que no se mezclen cuentas
+            try {
+              localStorage.removeItem(KEY);
+              localStorage.removeItem('stockly:moves');
+              localStorage.removeItem('stockly:biz');
+            } catch(e){}
+          }
+        }
+      });
+
+      // 4. Resto de configuraciones visuales
       let q;new MutationObserver(()=>{if(this.lang!=='en')return;cancelAnimationFrame(q);q=requestAnimationFrame(()=>this.i18n())}).observe(document.body,{childList:true,subtree:true,characterData:true});
       if(this.lang==='en')this.$nextTick(()=>this.i18n());
       
@@ -857,18 +885,15 @@ function stockly(){
         const x=e.clientX/innerWidth-.5,y=e.clientY/innerHeight-.5;
         document.querySelectorAll('[data-depth]').forEach(el=>gsap.to(el,{x:-x*el.dataset.depth,y:-y*el.dataset.depth,duration:.9,ease:'power3.out',overwrite:'auto'}))});
       
-      let t='';try{t=localStorage.getItem('stockly:theme')||''}catch(e){}
-      this.theme=t||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');this.applyTheme();
       this.$watch('products',()=>this.tween());this.tween();
       
-      setTimeout(()=>this.loading=false,650);
       document.addEventListener('pointerdown',e=>{const b=e.target.closest('button:not([disabled])');if(!b)return;if(getComputedStyle(b).position==='static')b.style.position='relative';b.style.overflow='hidden';const r=b.getBoundingClientRect(),s=Math.max(r.width,r.height)*2,o=document.createElement('span');o.className='ripple';o.style.cssText=`width:${s}px;height:${s}px;left:${e.clientX-r.left-s/2}px;top:${e.clientY-r.top-s/2}px`;b.appendChild(o);setTimeout(()=>o.remove(),600)});
     },
 
     async login() {
       this.authLoading = true;
       this.authError = '';
-      const { error } = await supabase.auth.signInWithPassword({ email: this.authEmail, password: this.authPass });
+      const { error } = await sb.auth.signInWithPassword({ email: this.authEmail, password: this.authPass });
       if (error) this.authError = error.message;
       else this.authPass = '';
       this.authLoading = false;
@@ -877,7 +902,7 @@ function stockly(){
     async register() {
       this.authLoading = true;
       this.authError = '';
-      const { data, error } = await supabase.auth.signUp({ email: this.authEmail, password: this.authPass });
+      const { data, error } = await sb.auth.signUp({ email: this.authEmail, password: this.authPass });
       if (error) {
         this.authError = error.message;
       } else if (data.user && data.session) {
@@ -890,8 +915,16 @@ function stockly(){
     },
 
     async logout() {
-      await supabase.auth.signOut();
+      await sb.auth.signOut();
       this.user = null;
+      this.products = [];
+      this.moves = [];
+      this.biz = { name: '', types: [], custom: [], done: false };
+      try {
+        localStorage.removeItem(KEY);
+        localStorage.removeItem('stockly:moves');
+        localStorage.removeItem('stockly:biz');
+      } catch(e){}
       this.say('Sesión cerrada');
     },
 
@@ -900,7 +933,7 @@ function stockly(){
       this.loading = true;
       try {
         // Cargar Negocio
-        let { data: bizData } = await supabase.from('businesses').select('*').eq('user_id', this.user.id).single();
+        let { data: bizData } = await sb.from('businesses').select('*').eq('user_id', this.user.id).single();
         if (bizData) {
           this.biz = { name: bizData.name, types: bizData.types, custom: bizData.custom, color: bizData.color, logo: bizData.logo, done: bizData.done };
           this.applyBrand();
@@ -909,7 +942,7 @@ function stockly(){
         }
 
         // Cargar Productos (Mapeando description de la BD a desc de la App)
-        let { data: prods } = await supabase.from('products').select('*').eq('user_id', this.user.id).order('id', { ascending: false });
+        let { data: prods } = await sb.from('products').select('*').eq('user_id', this.user.id).order('id', { ascending: false });
         if (prods && prods.length > 0) {
           this.products = prods.map(p => ({
             ...p, 
@@ -933,7 +966,7 @@ function stockly(){
         }
 
         // Cargar Movimientos
-        let { data: movs } = await supabase.from('moves').select('*').eq('user_id', this.user.id).order('t', { ascending: false });
+        let { data: movs } = await sb.from('moves').select('*').eq('user_id', this.user.id).order('t', { ascending: false });
         if (movs) this.moves = movs;
         else this.moves = [];
         
@@ -948,7 +981,7 @@ function stockly(){
     async pushToCloud(force = false) {
       if(!this.user) return;
       
-      // 1. Subir productos (Mapeando desc a description)
+      // 1. Subir productos
       if (this.products.length > 0) {
         const prodsToUpload = this.products.map(p => ({
           id: p.id, user_id: this.user.id, name: p.name, sku: p.sku, cat: p.cat,
@@ -956,7 +989,7 @@ function stockly(){
           description: p.desc, // Mapeo crucial
           img: p.img, tags: p.tags, hist: p.hist, barcode: p.barcode
         }));
-        await supabase.from('products').upsert(prodsToUpload);
+        await sb.from('products').upsert(prodsToUpload);
       }
 
       // 2. Subir negocio
@@ -964,7 +997,7 @@ function stockly(){
         user_id: this.user.id, name: this.biz.name, types: this.biz.types,
         custom: this.biz.custom, color: this.biz.color, logo: this.biz.logo, done: this.biz.done
       };
-      await supabase.from('businesses').upsert(bizToUpload);
+      await sb.from('businesses').upsert(bizToUpload);
 
       // 3. Subir movimientos
       if (this.moves.length > 0) {
@@ -973,7 +1006,7 @@ function stockly(){
           type: m.type, qty: m.qty, reason: m.reason, note: m.note,
           after: m.after, t: m.t
         }));
-        await supabase.from('moves').upsert(movesToUpload);
+        await sb.from('moves').upsert(movesToUpload);
       }
       
       if(force) this.say('Datos subidos a la nube');
@@ -1110,7 +1143,7 @@ function stockly(){
     toggleType(id){const a=this.setup.types;this.setup.types=a.includes(id)?a.filter(x=>x!==id):[...a,id]},
     addCustom(){const c=this.newCat.trim();if(c&&!this.setup.custom.includes(c))this.setup.custom=[...this.setup.custom,c];this.newCat=''},
     saveBiz(){this.touch();try{localStorage.setItem('stockly:biz',JSON.stringify(this.biz))}catch(e){}},
-    saveSetup(){this.addCustom();this.biz={...this.setup,done:true};this.saveBiz();this.applyBrand();if(this.fresh){this.products=[];this.persist();this.fresh=false}this.setupOpen=false;this.say('Negocio configurado')},
+    saveSetup(){this.addCustom();this.biz={...this.setup,done:true};this.saveBiz();this.applyBrand();if(this.fresh){this.products=[];this.persist();this.fresh=false}this.setupOpen=false;this.say('Negocio configurado'); this.pushToCloud();},
     skipSetup(){
       this.biz={name:'',types:[],custom:[],done:true};this.saveBiz();this.applyBrand();this.setupOpen=false;
       if(this.fresh){this.products=[];this.persist();this.fresh=false;}
@@ -1434,7 +1467,7 @@ function stockly(){
           type: m.type, qty: m.qty, reason: m.reason, note: m.note,
           after: m.after, t: m.t
         }));
-        supabase.from('moves').upsert(movesToUpload).then();
+        sb.from('moves').upsert(movesToUpload).then();
       }
     },
     move(id,type,qty,reason,note){
@@ -1444,7 +1477,7 @@ function stockly(){
       if(after<0){this.say('No hay suficientes existencias');return false}
       const line=`${type==='in'?'Entrada':'Salida'} ${type==='in'?'+':'−'}${qty} · ${reason}`+(note?` · ${note}`:'');
       this.products=this.products.map(x=>x.id!==id?x:{...x,stock:after,hist:[{t:Date.now(),m:line},...(x.hist||[])].slice(0,50)});
-      this.moves=[{id:Date.now()+Math.random(),pid:id,name:p.name,type,qty,reason,note:note||'',after,t:Date.now()},...this.moves].slice(0,500);
+      this.moves=[{id:Date.now()+Math.floor(Math.random()*1000),pid:id,name:p.name,type,qty,reason,note:note||'',after,t:Date.now()},...this.moves].slice(0,500);
       this.persist();this.persistMoves();return true
     },
     openMove(t){this.mv={open:true,type:t,qty:1,reason:(t==='in'?RIN:ROUT)[0],note:''}},
@@ -1565,7 +1598,7 @@ function stockly(){
     remove(p){
       this.undo={p,i:this.products.indexOf(p)};this.detail=null;
       this.products=this.products.filter(x=>x.id!==p.id);this.persist();this.say('Producto eliminado',true);
-      if(this.user) supabase.from('products').delete().eq('id', p.id).eq('user_id', this.user.id).then();
+      if(this.user) sb.from('products').delete().eq('id', p.id).eq('user_id', this.user.id).then();
     },
     pickFile(e){const f=e.target.files[0];if(f)this.readFile(f)},
     dropFile(e){const f=[...e.dataTransfer.files].find(x=>x.type.startsWith('image/'));if(f)this.readFile(f)},
